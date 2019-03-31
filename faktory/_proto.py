@@ -7,7 +7,6 @@ import os.path
 import json
 import socket
 import ssl
-import uuid
 
 from urllib.parse import urlparse
 
@@ -68,7 +67,8 @@ class Connection:
 
         ahoy = next(self.get_message())
         if not ahoy.startswith("HI "):
-            raise FaktoryHandshakeError("Could not connect to Faktory; expected HI from server, but got '{}'".format(ahoy))
+            raise FaktoryHandshakeError(
+                "Could not connect to Faktory; expected HI from server, but got '{}'".format(ahoy))
 
         response = {
             'hostname': socket.gethostname(),
@@ -84,14 +84,17 @@ class Connection:
             version = int(handshake['v'])
             if not self.is_supported_server_version(version):
                 self.socket.close()
-                raise FaktoryHandshakeError("Could not connect to Faktory; unsupported server version {}".format(version))
+                raise FaktoryHandshakeError(
+                    "Could not connect to Faktory; unsupported server version {}".format(version))
 
             nonce = handshake.get('s')
             if nonce and self.password:
-                response['pwdhash'] = hashlib.sha256(str.encode(self.password) + str.encode(nonce)).hexdigest()
+                response['pwdhash'] = hashlib.sha256(str.encode(
+                    self.password) + str.encode(nonce)).hexdigest()
         except (ValueError, TypeError):
             self.socket.close()
-            raise FaktoryHandshakeError("Could not connect to Faktory; expected handshake format")
+            raise FaktoryHandshakeError(
+                "Could not connect to Faktory; expected handshake format")
 
         self.reply("HELLO", response)
 
@@ -99,9 +102,11 @@ class Connection:
         if ok != "OK":
             if ok.startswith("ERR") and "invalid password" in ok.lower():
                 self.socket.close()
-                raise FaktoryAuthenticationError("Could not connect to Faktory; wrong password")
+                raise FaktoryAuthenticationError(
+                    "Could not connect to Faktory; wrong password")
             self.socket.close()
-            raise FaktoryHandshakeError("Could not connect to Faktory; expected OK from server, but got '{}'".format(ok))
+            raise FaktoryHandshakeError(
+                "Could not connect to Faktory; expected OK from server, but got '{}'".format(ok))
 
         self.log.debug("Connected to Faktory")
 
@@ -124,15 +129,18 @@ class Connection:
                             continue
                         elif chr(line[0]) == '+':
                             resp = line[1:].decode().strip("\r\n ")
-                            if self.debug: self.log.debug("> {}".format(resp))
+                            if self.debug:
+                                self.log.debug("> {}".format(resp))
                             yield resp
                         elif chr(line[0]) == '-':
                             resp = line[1:].decode().strip("\r\n ")
                         elif chr(line[0]) == '$':
                             # read $xxx bytes of data into a buffer
-                            number_of_bytes = int(line[1:]) + 2  # add 2 bytes so we read the \r\n from the end
+                            # add 2 bytes so we read the \r\n from the end
+                            number_of_bytes = int(line[1:]) + 2
                             if number_of_bytes <= 1:
-                                if self.debug: self.log.debug("> {}".format("nil"))
+                                if self.debug:
+                                    self.log.debug("> {}".format("nil"))
                                 yield None
                             else:
                                 if len(buffer) >= number_of_bytes:
@@ -142,11 +150,13 @@ class Connection:
                                 else:
                                     data = buffer
                                     while len(data) != number_of_bytes:
-                                        bytes_required = number_of_bytes - len(data)
+                                        bytes_required = number_of_bytes - \
+                                            len(data)
                                         data += socket.recv(bytes_required)
                                     buffer = []
                                 resp = data.decode().strip("\r\n ")
-                                if self.debug: self.log.debug("> {}".format(resp))
+                                if self.debug:
+                                    self.log.debug("> {}".format(resp))
                                 yield resp
                     else:
                         more = socket.recv(self.buffer_size)
@@ -155,7 +165,7 @@ class Connection:
                         else:
                             buffer += more
         for msg in inner():
-            logging.info("get_message result %s", msg)
+            logging.debug("get_message result %s", msg)
             yield msg
 
     def fetch(self, queues) -> Optional[dict]:
@@ -163,20 +173,21 @@ class Connection:
         job = next(self.get_message())
         if not job:
             return None
-        logging.info('Job Fetch Result: %s (%d chars)', job, len(job))
+        logging.debug('Job Fetch Result: %s (%d chars)', job, len(job))
 
         data = json.loads(job)
         return data
 
     def reply(self, cmd, data=None):
-        if self.debug: self.log.debug("< {} {}".format(cmd, data or ""))
+        if self.debug:
+            self.log.debug("< {} {}".format(cmd, data or ""))
         s = cmd
         if data is not None:
             if type(data) is dict:
                 s = "{} {}".format(s, json.dumps(data))
             else:
                 s = "{} {}".format(s, data)
-        logging.info('Sent raw server message: %s (%d chars)', s, len(s))
+        logging.debug('Sent raw server message: %s (%d chars)', s, len(s))
         self.socket.send(str.encode(s + "\r\n"))
 
     def disconnect(self):
